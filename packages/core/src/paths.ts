@@ -5,10 +5,10 @@
  * - Config location determines hash: sha256(dirname(configPath)).slice(0, 12)
  * - Each project gets directory: ~/.agent-orchestrator/{hash}-{projectId}/
  * - Sessions inside: sessions/{sessionName} (no hash prefix, already namespaced)
- * - Tmux names include hash for global uniqueness: {hash}-{prefix}-{num}
+ * - Tmux names include hash for global uniqueness: {hash}-{prefix}-{suffix}
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { dirname, basename, join } from "node:path";
 import { homedir } from "node:os";
 import { realpathSync, existsSync, writeFileSync, readFileSync, mkdirSync } from "node:fs";
@@ -119,40 +119,51 @@ export function getOriginFilePath(configPath: string, projectPath: string): stri
 }
 
 /**
- * Generate user-facing session name.
- * Format: {prefix}-{num}
- * Example: "int-1", "ao-42"
+ * Generate a random 6-character hex suffix for session IDs.
+ * 6 hex chars = 24 bits = ~16.7M values; collision at ~4096 sessions (birthday).
+ * The reserveSessionId() atomic loop handles the rare collision case.
  */
-export function generateSessionName(prefix: string, num: number): string {
-  return `${prefix}-${num}`;
+export function generateRandomSuffix(): string {
+  return randomBytes(3).toString("hex");
 }
 
 /**
- * Generate tmux session name (globally unique).
- * Format: {hash}-{prefix}-{num}
- * Example: "a3b4c5d6e7f8-int-1"
+ * Generate user-facing session name with a random hex suffix.
+ * Format: {prefix}-{suffix}
+ * Example: "int-a7f3b2", "ao-c4e9d1"
  */
-export function generateTmuxName(configPath: string, prefix: string, num: number): string {
+export function generateSessionName(prefix: string, suffix: string): string {
+  return `${prefix}-${suffix}`;
+}
+
+/**
+ * Generate tmux session name (globally unique) with a random hex suffix.
+ * Format: {hash}-{prefix}-{suffix}
+ * Example: "a3b4c5d6e7f8-int-a7f3b2"
+ */
+export function generateTmuxName(configPath: string, prefix: string, suffix: string): string {
   const hash = generateConfigHash(configPath);
-  return `${hash}-${prefix}-${num}`;
+  return `${hash}-${prefix}-${suffix}`;
 }
 
 /**
  * Parse a tmux session name to extract components.
+ * Accepts both old numeric suffixes (e.g., "a3b4c5d6e7f8-int-1")
+ * and new hex suffixes (e.g., "a3b4c5d6e7f8-int-a7f3b2").
  * Returns null if the name doesn't match the expected format.
  */
 export function parseTmuxName(tmuxName: string): {
   hash: string;
   prefix: string;
-  num: number;
+  suffix: string;
 } | null {
-  const match = tmuxName.match(/^([a-f0-9]{12})-([a-zA-Z0-9_-]+)-(\d+)$/);
+  const match = tmuxName.match(/^([a-f0-9]{12})-([a-zA-Z0-9_-]+)-([a-f0-9]+)$/);
   if (!match) return null;
 
   return {
     hash: match[1],
     prefix: match[2],
-    num: parseInt(match[3], 10),
+    suffix: match[3],
   };
 }
 
