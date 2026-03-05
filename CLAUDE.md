@@ -6,6 +6,13 @@ Open-source system for orchestrating parallel AI coding agents. Agent-agnostic (
 
 **Core principle: Push, not pull.** Spawn agents, walk away, get notified when your judgment is needed.
 
+## Git Remotes
+
+- **origin** = `fumb13s/agent-orchestrator` (our fork) — all PRs, issues, pushes target this
+- **upstream** = `ComposioHQ/agent-orchestrator` (original) — only when explicitly requested
+- `gh repo set-default` is configured to `fumb13s/agent-orchestrator`
+- **IMPORTANT:** Always use `--repo fumb13s/agent-orchestrator` or omit `--repo` (uses default). NEVER target upstream unless explicitly asked.
+
 ## Tech Stack
 
 TypeScript (ESM), Node 20+, pnpm workspaces. Next.js 15 (App Router) + Tailwind. Commander.js CLI. YAML + Zod config. Server-Sent Events for real-time. Flat metadata files + JSONL event log. ESLint + Prettier. vitest.
