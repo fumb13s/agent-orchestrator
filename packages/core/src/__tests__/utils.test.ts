@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readLastJsonlEntry } from "../utils.js";
+import { readLastJsonlEntry, parseShellCommand } from "../utils.js";
 
 describe("readLastJsonlEntry", () => {
   let tmpDir: string;
@@ -83,5 +83,128 @@ describe("readLastJsonlEntry", () => {
     const path = setup('{"type":"test"}\n');
     const result = await readLastJsonlEntry(path);
     expect(result!.modifiedAt).toBeInstanceOf(Date);
+  });
+});
+
+describe("parseShellCommand", () => {
+  it("parses a simple command", () => {
+    expect(parseShellCommand("echo hello")).toEqual({ file: "echo", args: ["hello"] });
+  });
+
+  it("parses a command with multiple arguments", () => {
+    expect(parseShellCommand("claude --model sonnet-4 --flag")).toEqual({
+      file: "claude",
+      args: ["--model", "sonnet-4", "--flag"],
+    });
+  });
+
+  it("parses single-quoted arguments", () => {
+    expect(parseShellCommand("claude --model 'sonnet-4'")).toEqual({
+      file: "claude",
+      args: ["--model", "sonnet-4"],
+    });
+  });
+
+  it("parses double-quoted arguments without shell features", () => {
+    expect(parseShellCommand('claude --model "sonnet-4"')).toEqual({
+      file: "claude",
+      args: ["--model", "sonnet-4"],
+    });
+  });
+
+  it("handles escaped single quotes in single-quoted strings", () => {
+    // 'it'\''s' is the POSIX way to embed a single quote
+    expect(parseShellCommand("echo 'it'\\''s'")).toEqual(null);
+    // Backslash outside quotes is a shell metacharacter
+  });
+
+  it("handles adjacent quoted and unquoted segments", () => {
+    expect(parseShellCommand("echo 'hello'world")).toEqual({
+      file: "echo",
+      args: ["helloworld"],
+    });
+  });
+
+  it("returns null for empty string", () => {
+    expect(parseShellCommand("")).toBeNull();
+  });
+
+  it("returns null for whitespace-only string", () => {
+    expect(parseShellCommand("   ")).toBeNull();
+  });
+
+  it("returns null for command substitution with $()", () => {
+    expect(parseShellCommand('echo "$(cat file)"')).toBeNull();
+  });
+
+  it("returns null for backtick command substitution", () => {
+    expect(parseShellCommand("echo `cat file`")).toBeNull();
+  });
+
+  it("returns null for pipes", () => {
+    expect(parseShellCommand("echo hello | cat")).toBeNull();
+  });
+
+  it("returns null for redirects", () => {
+    expect(parseShellCommand("echo hello > file.txt")).toBeNull();
+  });
+
+  it("returns null for semicolons", () => {
+    expect(parseShellCommand("echo hello; echo world")).toBeNull();
+  });
+
+  it("returns null for background operator", () => {
+    expect(parseShellCommand("echo hello &")).toBeNull();
+  });
+
+  it("returns null for backslash (escape character)", () => {
+    expect(parseShellCommand("echo hello\\ world")).toBeNull();
+  });
+
+  it("returns null for unterminated single quote", () => {
+    expect(parseShellCommand("echo 'hello")).toBeNull();
+  });
+
+  it("returns null for unterminated double quote", () => {
+    expect(parseShellCommand('echo "hello')).toBeNull();
+  });
+
+  it("returns null for dollar sign in double quotes", () => {
+    expect(parseShellCommand('echo "$HOME"')).toBeNull();
+  });
+
+  it("parses a command with no arguments", () => {
+    expect(parseShellCommand("cat")).toEqual({ file: "cat", args: [] });
+  });
+
+  it("handles tabs between arguments", () => {
+    expect(parseShellCommand("echo\thello\tworld")).toEqual({
+      file: "echo",
+      args: ["hello", "world"],
+    });
+  });
+
+  it("handles leading and trailing whitespace", () => {
+    expect(parseShellCommand("  echo hello  ")).toEqual({
+      file: "echo",
+      args: ["hello"],
+    });
+  });
+
+  it("parses realistic claude-code launch command without shell features", () => {
+    expect(
+      parseShellCommand("claude --dangerously-skip-permissions --model 'sonnet-4'"),
+    ).toEqual({
+      file: "claude",
+      args: ["--dangerously-skip-permissions", "--model", "sonnet-4"],
+    });
+  });
+
+  it("returns null for realistic claude-code command with $(cat ...)", () => {
+    expect(
+      parseShellCommand(
+        "claude --append-system-prompt \"$(cat '/tmp/prompt.txt')\" --model 'sonnet-4'",
+      ),
+    ).toBeNull();
   });
 });

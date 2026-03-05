@@ -1,11 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import type {
-  PluginModule,
-  Runtime,
-  RuntimeCreateConfig,
-  RuntimeHandle,
-  RuntimeMetrics,
-  AttachInfo,
+import {
+  parseShellCommand,
+  type PluginModule,
+  type Runtime,
+  type RuntimeCreateConfig,
+  type RuntimeHandle,
+  type RuntimeMetrics,
+  type AttachInfo,
 } from "@composio/ao-core";
 
 export const manifest = {
@@ -57,17 +58,27 @@ export function create(): Runtime {
       };
       processes.set(handleId, entry);
 
-      // NOTE: shell:true is intentional — launchCommand comes from trusted YAML config
-      // and may contain pipes, redirects, or other shell syntax.
+      // Try to parse the launch command into file + args to avoid shell: true.
+      // Falls back to shell: true only when the command contains shell features
+      // (pipes, redirects, command substitution, etc.).
+      const parsed = parseShellCommand(config.launchCommand);
+
       let child: ChildProcess;
       try {
-        child = spawn(config.launchCommand, {
-          cwd: config.workspacePath,
-          env: { ...process.env, ...config.environment },
-          stdio: ["pipe", "pipe", "pipe"],
-          shell: true,
-          detached: true, // Own process group so destroy() can kill child commands
-        });
+        child = parsed
+          ? spawn(parsed.file, parsed.args, {
+              cwd: config.workspacePath,
+              env: { ...process.env, ...config.environment },
+              stdio: ["pipe", "pipe", "pipe"],
+              detached: true,
+            })
+          : spawn(config.launchCommand, {
+              cwd: config.workspacePath,
+              env: { ...process.env, ...config.environment },
+              stdio: ["pipe", "pipe", "pipe"],
+              shell: true,
+              detached: true,
+            });
       } catch (err: unknown) {
         processes.delete(handleId);
         const msg = err instanceof Error ? err.message : String(err);
