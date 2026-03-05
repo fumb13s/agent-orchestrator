@@ -23,6 +23,84 @@ export function escapeAppleScript(s: string): string {
 }
 
 /**
+ * Shell metacharacters that require shell interpretation.
+ * If any of these appear unquoted in a command string, the command
+ * cannot be safely split into argv without a shell.
+ */
+const SHELL_META = /[|&;<>`${}()\n\\]/;
+
+/**
+ * Parse a shell command string into a file and argument array.
+ *
+ * Handles single-quoted and double-quoted strings. Returns `null` if
+ * the command contains unquoted shell metacharacters (pipes, redirects,
+ * command substitution, etc.) that require a real shell to interpret.
+ *
+ * This enables `spawn(file, args)` (no shell) for simple commands while
+ * falling back to `spawn(cmd, { shell: true })` for complex ones.
+ */
+export function parseShellCommand(cmd: string): { file: string; args: string[] } | null {
+  const trimmed = cmd.trim();
+  if (!trimmed) return null;
+
+  const tokens: string[] = [];
+  let i = 0;
+
+  while (i < trimmed.length) {
+    // Skip whitespace between tokens
+    if (trimmed[i] === " " || trimmed[i] === "\t") {
+      i++;
+      continue;
+    }
+
+    let token = "";
+
+    while (i < trimmed.length && trimmed[i] !== " " && trimmed[i] !== "\t") {
+      const ch = trimmed[i];
+
+      if (ch === "'") {
+        // Single-quoted string: everything until the next unescaped '
+        i++; // skip opening quote
+        while (i < trimmed.length && trimmed[i] !== "'") {
+          token += trimmed[i];
+          i++;
+        }
+        if (i >= trimmed.length) return null; // unterminated quote
+        i++; // skip closing quote
+      } else if (ch === '"') {
+        // Double-quoted string: check for shell metacharacters inside
+        i++; // skip opening quote
+        while (i < trimmed.length && trimmed[i] !== '"') {
+          if (trimmed[i] === "\\") {
+            // Backslash inside double quotes — shell metacharacter
+            return null;
+          }
+          if (trimmed[i] === "$" || trimmed[i] === "`") {
+            // Variable expansion or command substitution — needs shell
+            return null;
+          }
+          token += trimmed[i];
+          i++;
+        }
+        if (i >= trimmed.length) return null; // unterminated quote
+        i++; // skip closing quote
+      } else {
+        // Unquoted character — check for shell metacharacters
+        if (SHELL_META.test(ch)) return null;
+        token += ch;
+        i++;
+      }
+    }
+
+    tokens.push(token);
+  }
+
+  if (tokens.length === 0) return null;
+
+  return { file: tokens[0], args: tokens.slice(1) };
+}
+
+/**
  * Validate that a URL starts with http:// or https://.
  * Throws with a descriptive error including the plugin label if invalid.
  */

@@ -97,26 +97,65 @@ describe("manifest & exports", () => {
 // runtime.create()
 // =========================================================================
 describe("create()", () => {
-  it("spawns process with shell:true, detached:true, correct cwd and env", async () => {
+  it("spawns simple commands without shell (parsed into file + args)", async () => {
     const child = createMockChild();
     mockSpawn.mockReturnValue(child);
 
     const runtime = create();
     await runtime.create(defaultConfig());
 
+    // "echo hello" is a simple command — should be parsed and spawned without shell
     expect(mockSpawn).toHaveBeenCalledWith(
-      "echo hello",
+      "echo",
+      ["hello"],
       expect.objectContaining({
         cwd: "/tmp/workspace",
-        shell: true,
         detached: true,
         stdio: ["pipe", "pipe", "pipe"],
       }),
     );
 
+    // shell should NOT be set
+    const callArgs = mockSpawn.mock.calls[0][2] as Record<string, unknown>;
+    expect(callArgs.shell).toBeUndefined();
+
     // Check the env includes the config environment merged with process.env
-    const callArgs = mockSpawn.mock.calls[0][1] as { env: Record<string, string> };
-    expect(callArgs.env.FOO).toBe("bar");
+    expect((callArgs.env as Record<string, string>).FOO).toBe("bar");
+  });
+
+  it("falls back to shell: true for commands with shell features", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+
+    const runtime = create();
+    await runtime.create(
+      defaultConfig({ launchCommand: 'claude --append-system-prompt "$(cat /tmp/p.txt)"' }),
+    );
+
+    // Command contains $() — should fall back to shell: true
+    expect(mockSpawn).toHaveBeenCalledWith(
+      'claude --append-system-prompt "$(cat /tmp/p.txt)"',
+      expect.objectContaining({
+        shell: true,
+        detached: true,
+      }),
+    );
+  });
+
+  it("falls back to shell: true for commands with pipes", async () => {
+    const child = createMockChild();
+    mockSpawn.mockReturnValue(child);
+
+    const runtime = create();
+    await runtime.create(defaultConfig({ launchCommand: "echo hello | cat" }));
+
+    expect(mockSpawn).toHaveBeenCalledWith(
+      "echo hello | cat",
+      expect.objectContaining({
+        shell: true,
+        detached: true,
+      }),
+    );
   });
 
   it("returns handle with correct id, runtimeName, and pid in data", async () => {
