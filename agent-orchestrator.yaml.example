@@ -7,6 +7,10 @@ dataDir: ~/.agent-orchestrator
 # Where to create workspaces (git worktrees, clones)
 worktreeDir: ~/.worktrees
 
+# Host/IP to bind all servers to (default: 127.0.0.1, localhost only)
+# Set to 0.0.0.0 to expose on the network (use with caution)
+# host: 127.0.0.1
+
 # Web dashboard port
 port: 3000
 

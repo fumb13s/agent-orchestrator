@@ -808,6 +808,9 @@ export interface OrchestratorConfig {
    */
   configPath: string;
 
+  /** Host/IP to bind servers to (defaults to "127.0.0.1") */
+  host?: string;
+
   /** Web dashboard port (defaults to 3000) */
   port?: number;
 

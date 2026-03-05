@@ -89,6 +89,7 @@ const DefaultPluginsSchema = z.object({
 });
 
 const OrchestratorConfigSchema = z.object({
+  host: z.string().default("127.0.0.1"),
   port: z.number().default(3000),
   terminalPort: z.number().optional(),
   directTerminalPort: z.number().optional(),

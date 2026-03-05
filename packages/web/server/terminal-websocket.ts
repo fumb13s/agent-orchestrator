@@ -308,9 +308,10 @@ const server = createServer(async (req, res) => {
 });
 
 const PORT = parseInt(process.env.TERMINAL_PORT ?? "14800", 10);
+const HOST = process.env.TERMINAL_HOST ?? "127.0.0.1";
 
-server.listen(PORT, () => {
-  console.log(`[Terminal] Server listening on port ${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`[Terminal] Server listening on ${HOST}:${PORT}`);
 });
 
 // Graceful shutdown — kill all ttyd instances

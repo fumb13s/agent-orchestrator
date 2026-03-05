@@ -12,9 +12,10 @@ export function registerDashboard(program: Command): void {
     .command("dashboard")
     .description("Start the web dashboard")
     .option("-p, --port <port>", "Port to listen on")
+    .option("-H, --host <host>", "Host/IP to bind to (default: 127.0.0.1)")
     .option("--no-open", "Don't open browser automatically")
     .option("--rebuild", "Clean stale build artifacts and rebuild before starting")
-    .action(async (opts: { port?: string; open?: boolean; rebuild?: boolean }) => {
+    .action(async (opts: { port?: string; host?: string; open?: boolean; rebuild?: boolean }) => {
       const config = loadConfig();
       const port = opts.port ? parseInt(opts.port, 10) : (config.port ?? 3000);
 
@@ -60,16 +61,19 @@ export function registerDashboard(program: Command): void {
 
       const webDir = localWebDir;
 
-      console.log(chalk.bold(`Starting dashboard on http://localhost:${port}\n`));
+      const host = opts.host ?? config.host ?? "127.0.0.1";
+
+      console.log(chalk.bold(`Starting dashboard on http://${host}:${port}\n`));
 
       const env = await buildDashboardEnv(
         port,
         config.configPath,
         config.terminalPort,
         config.directTerminalPort,
+        host,
       );
 
-      const child = spawn("npx", ["next", "dev", "-p", String(port)], {
+      const child = spawn("npx", ["next", "dev", "-p", String(port), "-H", host], {
         cwd: webDir,
         stdio: ["inherit", "inherit", "pipe"],
         env,
@@ -98,7 +102,7 @@ export function registerDashboard(program: Command): void {
 
       if (opts.open !== false) {
         openAbort = new AbortController();
-        void waitForPortAndOpen(port, `http://localhost:${port}`, openAbort.signal);
+        void waitForPortAndOpen(port, `http://${host}:${port}`, openAbort.signal);
       }
 
       child.on("exit", (code) => {

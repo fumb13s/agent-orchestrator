@@ -219,8 +219,9 @@ async function startDashboard(
   configPath: string | null,
   terminalPort?: number,
   directTerminalPort?: number,
+  host?: string,
 ): Promise<ChildProcess> {
-  const env = await buildDashboardEnv(port, configPath, terminalPort, directTerminalPort);
+  const env = await buildDashboardEnv(port, configPath, terminalPort, directTerminalPort, host);
 
   const child = spawn("pnpm", ["run", "dev"], {
     cwd: webDir,
@@ -250,6 +251,7 @@ async function runStartup(
 ): Promise<void> {
   const sessionId = `${project.sessionPrefix}-orchestrator`;
   let port = config.port ?? DEFAULT_PORT;
+  const host = config.host ?? "127.0.0.1";
 
   console.log(chalk.bold(`\nStarting orchestrator for ${chalk.cyan(project.name)}\n`));
 
@@ -291,8 +293,9 @@ async function runStartup(
       config.configPath,
       config.terminalPort,
       config.directTerminalPort,
+      host,
     );
-    spinner.succeed(`Dashboard starting on http://localhost:${port}`);
+    spinner.succeed(`Dashboard starting on http://${host}:${port}`);
     console.log(chalk.dim("  (Dashboard will be ready in a few seconds)\n"));
   }
 
@@ -338,7 +341,7 @@ async function runStartup(
   console.log(chalk.bold.green("\n✓ Startup complete\n"));
 
   if (opts?.dashboard !== false) {
-    console.log(chalk.cyan("Dashboard:"), `http://localhost:${port}`);
+    console.log(chalk.cyan("Dashboard:"), `http://${host}:${port}`);
   }
 
   if (opts?.orchestrator !== false && !exists) {
@@ -355,7 +358,7 @@ async function runStartup(
   let openAbort: AbortController | undefined;
   if (opts?.dashboard !== false) {
     openAbort = new AbortController();
-    const orchestratorUrl = `http://localhost:${port}/sessions/${sessionId}`;
+    const orchestratorUrl = `http://${host}:${port}/sessions/${sessionId}`;
     void waitForPortAndOpen(port, orchestratorUrl, openAbort.signal);
   }
 
