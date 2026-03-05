@@ -113,6 +113,7 @@ export async function buildDashboardEnv(
   configPath: string | null,
   terminalPort?: number,
   directTerminalPort?: number,
+  host?: string,
 ): Promise<Record<string, string>> {
   const env: Record<string, string> = { ...process.env } as Record<string, string>;
 
@@ -122,6 +123,11 @@ export async function buildDashboardEnv(
   }
 
   env["PORT"] = String(port);
+
+  // Pass host binding to Next.js and terminal servers
+  const resolvedHost = host ?? "127.0.0.1";
+  env["HOST"] = resolvedHost;
+  env["TERMINAL_HOST"] = resolvedHost;
 
   // If explicit ports provided (config or env var), use them directly.
   // Otherwise, auto-detect an available pair starting from the default.
