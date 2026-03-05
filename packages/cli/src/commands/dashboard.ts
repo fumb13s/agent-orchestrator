@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import chalk from "chalk";
 import type { Command } from "commander";
-import { loadConfig } from "@composio/ao-core";
+import { loadConfig, ensureAuthToken } from "@composio/ao-core";
 import { findWebDir, buildDashboardEnv, waitForPortAndOpen } from "../lib/web-dir.js";
 import { cleanNextCache, findRunningDashboardPid, findProcessWebDir, waitForPortFree } from "../lib/dashboard-rebuild.js";
 
@@ -65,12 +65,14 @@ export function registerDashboard(program: Command): void {
 
       console.log(chalk.bold(`Starting dashboard on http://${host}:${port}\n`));
 
+      const authToken = ensureAuthToken();
       const env = await buildDashboardEnv(
         port,
         config.configPath,
         config.terminalPort,
         config.directTerminalPort,
         host,
+        authToken,
       );
 
       const child = spawn("npx", ["next", "dev", "-p", String(port), "-H", host], {

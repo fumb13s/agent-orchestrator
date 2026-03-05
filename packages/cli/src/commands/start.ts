@@ -24,6 +24,7 @@ import {
   isRepoAlreadyCloned,
   generateConfigFromUrl,
   configToYaml,
+  ensureAuthToken,
   type OrchestratorConfig,
   type ProjectConfig,
   type ParsedRepoUrl,
@@ -220,8 +221,9 @@ async function startDashboard(
   terminalPort?: number,
   directTerminalPort?: number,
   host?: string,
+  authToken?: string,
 ): Promise<ChildProcess> {
-  const env = await buildDashboardEnv(port, configPath, terminalPort, directTerminalPort, host);
+  const env = await buildDashboardEnv(port, configPath, terminalPort, directTerminalPort, host, authToken);
 
   const child = spawn("pnpm", ["run", "dev"], {
     cwd: webDir,
@@ -252,6 +254,9 @@ async function runStartup(
   const sessionId = `${project.sessionPrefix}-orchestrator`;
   let port = config.port ?? DEFAULT_PORT;
   const host = config.host ?? "127.0.0.1";
+
+  // Generate or read auth token
+  const authToken = ensureAuthToken();
 
   console.log(chalk.bold(`\nStarting orchestrator for ${chalk.cyan(project.name)}\n`));
 
@@ -294,6 +299,7 @@ async function runStartup(
       config.terminalPort,
       config.directTerminalPort,
       host,
+      authToken,
     );
     spinner.succeed(`Dashboard starting on http://${host}:${port}`);
     console.log(chalk.dim("  (Dashboard will be ready in a few seconds)\n"));
@@ -350,6 +356,7 @@ async function runStartup(
     console.log(chalk.cyan("Orchestrator:"), `already running (${sessionId})`);
   }
 
+  console.log(chalk.cyan("Auth token:"), authToken);
   console.log(chalk.dim(`Config: ${config.configPath}\n`));
 
   // Auto-open browser to orchestrator session page once the server is accepting connections.
