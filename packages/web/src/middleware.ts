@@ -7,6 +7,10 @@
  * - Reject requests with disallowed or "null" Origin
  *
  * GET/HEAD/OPTIONS are always allowed (read-only, no CSRF risk).
+ *
+ * NOTE: Origin validation logic is duplicated from server/origin-validation.ts
+ * because Next.js middleware runs in the Edge Runtime and cannot import
+ * Node.js server modules. Keep both in sync when updating the allowlist.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
