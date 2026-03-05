@@ -73,6 +73,7 @@ export {
   getWorktreesDir,
   getArchiveDir,
   getOriginFilePath,
+  generateRandomSuffix,
   generateSessionName,
   generateTmuxName,
   parseTmuxName,

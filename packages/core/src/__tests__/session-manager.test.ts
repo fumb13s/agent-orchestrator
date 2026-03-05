@@ -139,7 +139,7 @@ describe("spawn", () => {
 
     const session = await sm.spawn({ projectId: "my-app" });
 
-    expect(session.id).toBe("app-1");
+    expect(session.id).toMatch(/^app-[a-f0-9]{6}$/);
     expect(session.status).toBe("spawning");
     expect(session.projectId).toBe("my-app");
     expect(session.runtimeHandle).toEqual(makeHandle("rt-1"));
@@ -219,7 +219,7 @@ describe("spawn", () => {
     const session = await sm.spawn({ projectId: "my-app", issueId: "!!!" });
 
     // Slug is empty after sanitization, falls back to sessionId
-    expect(session.branch).toMatch(/^feat\/app-\d+$/);
+    expect(session.branch).toMatch(/^feat\/app-[a-f0-9]{6}$/);
   });
 
   it("sanitizes issueId containing '..' (invalid in git branch names)", async () => {
@@ -261,22 +261,25 @@ describe("spawn", () => {
     expect(session.branch).toBe("custom/INT-100-my-feature");
   });
 
-  it("increments session numbers correctly", async () => {
+  it("generates unpredictable random hex session IDs", async () => {
     const sm = createSessionManager({ config, registry: mockRegistry });
 
-    // Pre-create some metadata to simulate existing sessions
-    writeMetadata(sessionsDir, "app-3", { worktree: "/tmp", branch: "b", status: "working" });
-    writeMetadata(sessionsDir, "app-7", { worktree: "/tmp", branch: "b", status: "working" });
+    const session1 = await sm.spawn({ projectId: "my-app" });
+    const session2 = await sm.spawn({ projectId: "my-app" });
 
-    const session = await sm.spawn({ projectId: "my-app" });
-    expect(session.id).toBe("app-8");
+    // Both should have the prefix + 6 hex chars format
+    expect(session1.id).toMatch(/^app-[a-f0-9]{6}$/);
+    expect(session2.id).toMatch(/^app-[a-f0-9]{6}$/);
+
+    // IDs should be different (random)
+    expect(session1.id).not.toBe(session2.id);
   });
 
   it("writes metadata file", async () => {
     const sm = createSessionManager({ config, registry: mockRegistry });
-    await sm.spawn({ projectId: "my-app", issueId: "INT-42" });
+    const session = await sm.spawn({ projectId: "my-app", issueId: "INT-42" });
 
-    const meta = readMetadata(sessionsDir, "app-1");
+    const meta = readMetadata(sessionsDir, session.id);
     expect(meta).not.toBeNull();
     expect(meta!.status).toBe("spawning");
     expect(meta!.project).toBe("my-app");
@@ -358,9 +361,9 @@ describe("spawn", () => {
     it("persists agent name in metadata when override is used", async () => {
       const sm = createSessionManager({ config, registry: registryWithMultipleAgents });
 
-      await sm.spawn({ projectId: "my-app", agent: "codex" });
+      const session = await sm.spawn({ projectId: "my-app", agent: "codex" });
 
-      const meta = readMetadataRaw(sessionsDir, "app-1");
+      const meta = readMetadataRaw(sessionsDir, session.id);
       expect(meta).not.toBeNull();
       expect(meta!["agent"]).toBe("codex");
     });
@@ -368,9 +371,9 @@ describe("spawn", () => {
     it("persists default agent name in metadata when no override", async () => {
       const sm = createSessionManager({ config, registry: registryWithMultipleAgents });
 
-      await sm.spawn({ projectId: "my-app" });
+      const session = await sm.spawn({ projectId: "my-app" });
 
-      const meta = readMetadataRaw(sessionsDir, "app-1");
+      const meta = readMetadataRaw(sessionsDir, session.id);
       expect(meta).not.toBeNull();
       expect(meta!["agent"]).toBe("mock-agent");
     });
@@ -378,9 +381,9 @@ describe("spawn", () => {
     it("readMetadata returns agent field (typed SessionMetadata)", async () => {
       const sm = createSessionManager({ config, registry: registryWithMultipleAgents });
 
-      await sm.spawn({ projectId: "my-app", agent: "codex" });
+      const session = await sm.spawn({ projectId: "my-app", agent: "codex" });
 
-      const meta = readMetadata(sessionsDir, "app-1");
+      const meta = readMetadata(sessionsDir, session.id);
       expect(meta).not.toBeNull();
       expect(meta!.agent).toBe("codex");
     });
@@ -540,7 +543,7 @@ describe("spawn", () => {
 
     expect(session.issueId).toBeNull();
     // Uses session/{sessionId} to avoid conflicts with default branch
-    expect(session.branch).toMatch(/^session\/app-\d+$/);
+    expect(session.branch).toMatch(/^session\/app-[a-f0-9]{6}$/);
     expect(session.branch).not.toBe("main");
   });
 
@@ -632,7 +635,7 @@ describe("spawn", () => {
     const session = await spawnPromise;
 
     // Session should still be returned successfully despite sendMessage failure
-    expect(session.id).toBe("app-1");
+    expect(session.id).toMatch(/^app-[a-f0-9]{6}$/);
     expect(session.status).toBe("spawning");
     // Runtime should NOT have been destroyed
     expect(failingRuntime.destroy).not.toHaveBeenCalled();

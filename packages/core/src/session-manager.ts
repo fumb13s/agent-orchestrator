@@ -44,36 +44,17 @@ import {
   writeMetadata,
   updateMetadata,
   deleteMetadata,
-  listMetadata,
   reserveSessionId,
 } from "./metadata.js";
 import { buildPrompt } from "./prompt-builder.js";
 import {
   getSessionsDir,
   getProjectBaseDir,
+  generateRandomSuffix,
   generateTmuxName,
   generateConfigHash,
   validateAndStoreOrigin,
 } from "./paths.js";
-
-/** Escape regex metacharacters in a string. */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Get the next session number for a project. */
-function getNextSessionNumber(existingSessions: string[], prefix: string): number {
-  let max = 0;
-  const pattern = new RegExp(`^${escapeRegex(prefix)}-(\\d+)$`);
-  for (const name of existingSessions) {
-    const match = name.match(pattern);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (num > max) max = num;
-    }
-  }
-  return max + 1;
-}
 
 /** Safely parse JSON, returning null on failure. */
 function safeJsonParse<T>(str: string): T | null {
@@ -363,19 +344,18 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
       validateAndStoreOrigin(config.configPath, project.path);
     }
 
-    // Determine session ID — atomically reserve to prevent concurrent collisions
-    const existingSessions = listMetadata(sessionsDir);
-    let num = getNextSessionNumber(existingSessions, project.sessionPrefix);
+    // Determine session ID — generate random suffix, atomically reserve to prevent collisions
+    let suffix = generateRandomSuffix();
     let sessionId: string;
     let tmuxName: string | undefined;
     for (let attempts = 0; attempts < 10; attempts++) {
-      sessionId = `${project.sessionPrefix}-${num}`;
+      sessionId = `${project.sessionPrefix}-${suffix}`;
       // Generate tmux name if using new architecture
       if (config.configPath) {
-        tmuxName = generateTmuxName(config.configPath, project.sessionPrefix, num);
+        tmuxName = generateTmuxName(config.configPath, project.sessionPrefix, suffix);
       }
       if (reserveSessionId(sessionsDir, sessionId)) break;
-      num++;
+      suffix = generateRandomSuffix();
       if (attempts === 9) {
         throw new Error(
           `Failed to reserve session ID after 10 attempts (prefix: ${project.sessionPrefix})`,
@@ -383,9 +363,9 @@ export function createSessionManager(deps: SessionManagerDeps): SessionManager {
       }
     }
     // Reassign to satisfy TypeScript's flow analysis (not redundant from compiler's perspective)
-    sessionId = `${project.sessionPrefix}-${num}`;
+    sessionId = `${project.sessionPrefix}-${suffix}`;
     if (config.configPath) {
-      tmuxName = generateTmuxName(config.configPath, project.sessionPrefix, num);
+      tmuxName = generateTmuxName(config.configPath, project.sessionPrefix, suffix);
     }
 
     // Determine branch name — explicit branch always takes priority

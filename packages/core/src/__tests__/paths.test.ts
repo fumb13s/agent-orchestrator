@@ -25,6 +25,7 @@ import {
   getWorktreesDir,
   getArchiveDir,
   getOriginFilePath,
+  generateRandomSuffix,
   generateSessionName,
   generateTmuxName,
   parseTmuxName,
@@ -314,16 +315,29 @@ describe("Home Directory Expansion", () => {
   });
 });
 
+describe("Random Suffix Generation", () => {
+  it("produces 6-character hex string", () => {
+    const suffix = generateRandomSuffix();
+    expect(suffix).toHaveLength(6);
+    expect(suffix).toMatch(/^[a-f0-9]{6}$/);
+  });
+
+  it("produces different values on successive calls", () => {
+    const suffixes = new Set(Array.from({ length: 20 }, () => generateRandomSuffix()));
+    // With 24 bits of entropy, 20 values should all be unique
+    expect(suffixes.size).toBe(20);
+  });
+});
+
 describe("Session Naming", () => {
-  it("generateSessionName format is {prefix}-{num}", () => {
-    expect(generateSessionName("int", 1)).toBe("int-1");
-    expect(generateSessionName("ao", 42)).toBe("ao-42");
-    expect(generateSessionName("be", 999)).toBe("be-999");
+  it("generateSessionName format is {prefix}-{suffix}", () => {
+    expect(generateSessionName("int", "a7f3b2")).toBe("int-a7f3b2");
+    expect(generateSessionName("ao", "c4e9d1")).toBe("ao-c4e9d1");
   });
 
   it("does NOT include hash", () => {
-    const name = generateSessionName("int", 1);
-    expect(name).not.toMatch(/[a-f0-9]{12}/);
+    const name = generateSessionName("int", "a7f3b2");
+    expect(name).not.toMatch(/^[a-f0-9]{12}-/);
   });
 });
 
@@ -341,61 +355,62 @@ describe("Tmux Naming", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("generateTmuxName format is {hash}-{prefix}-{num}", () => {
-    const tmuxName = generateTmuxName(configPath, "int", 1);
+  it("generateTmuxName format is {hash}-{prefix}-{suffix}", () => {
+    const tmuxName = generateTmuxName(configPath, "int", "a7f3b2");
 
-    expect(tmuxName).toMatch(/^[a-f0-9]{12}-int-1$/);
+    expect(tmuxName).toMatch(/^[a-f0-9]{12}-int-a7f3b2$/);
   });
 
   it("ALWAYS includes hash for global uniqueness", () => {
-    const tmuxName = generateTmuxName(configPath, "int", 1);
+    const tmuxName = generateTmuxName(configPath, "int", "a7f3b2");
 
     expect(tmuxName).toMatch(/^[a-f0-9]{12}-/);
   });
 
-  it("parseTmuxName correctly extracts components", () => {
-    const parsed = parseTmuxName("a3b4c5d6e7f8-int-1");
+  it("parseTmuxName correctly extracts hex suffix", () => {
+    const parsed = parseTmuxName("a3b4c5d6e7f8-int-a7f3b2");
 
     expect(parsed).toEqual({
       hash: "a3b4c5d6e7f8",
       prefix: "int",
-      num: 1,
+      suffix: "a7f3b2",
     });
   });
 
-  it("parseTmuxName handles multi-digit numbers", () => {
+  it("parseTmuxName handles legacy numeric suffixes", () => {
     const parsed = parseTmuxName("a3b4c5d6e7f8-be-999");
 
     expect(parsed).toEqual({
       hash: "a3b4c5d6e7f8",
       prefix: "be",
-      num: 999,
+      suffix: "999",
     });
   });
 
   it("parseTmuxName handles prefixes with dashes", () => {
-    const parsed = parseTmuxName("a3b4c5d6e7f8-my-app-5");
+    const parsed = parseTmuxName("a3b4c5d6e7f8-my-app-a7f3b2");
 
     expect(parsed).toEqual({
       hash: "a3b4c5d6e7f8",
       prefix: "my-app",
-      num: 5,
+      suffix: "a7f3b2",
     });
   });
 
   it("parseTmuxName returns null for invalid formats", () => {
     expect(parseTmuxName("invalid")).toBeNull();
-    expect(parseTmuxName("int-1")).toBeNull(); // No hash
-    expect(parseTmuxName("a3b4-int-1")).toBeNull(); // Hash too short
+    expect(parseTmuxName("int-a7f3b2")).toBeNull(); // No hash
+    expect(parseTmuxName("a3b4-int-a7f3b2")).toBeNull(); // Hash too short
     expect(parseTmuxName("not-a-hash-int-1")).toBeNull(); // Invalid hash chars
   });
 
   it("user-facing name does NOT include hash", () => {
-    const userFacing = generateSessionName("int", 1);
-    const tmuxName = generateTmuxName(configPath, "int", 1);
+    const suffix = "a7f3b2";
+    const userFacing = generateSessionName("int", suffix);
+    const tmuxName = generateTmuxName(configPath, "int", suffix);
 
-    expect(userFacing).toBe("int-1");
-    expect(tmuxName).toMatch(/^[a-f0-9]{12}-int-1$/);
+    expect(userFacing).toBe("int-a7f3b2");
+    expect(tmuxName).toMatch(/^[a-f0-9]{12}-int-a7f3b2$/);
     expect(userFacing).not.toEqual(tmuxName);
   });
 });
